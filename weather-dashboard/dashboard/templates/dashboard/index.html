@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+{% load static %}
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="A modern weather dashboard with real-time weather data">
+    <meta name="theme-color" content="#2c3e50">
+    <title>Weather Dashboard</title>
+    <link rel="stylesheet" href="{% static 'dashboard/css/styles.css' %}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-content">
+                <h1 class="app-title">
+                    <span class="weather-emoji">🌤️</span>
+                    Weather Dashboard
+                </h1>
+                <p class="app-subtitle">Real-time weather at your location</p>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="app-main">
+            <!-- Location Detection Status -->
+            <div id="location-status" class="location-status" style="display: none;">
+                <span class="status-icon">📍</span>
+                <p id="location-text" class="status-text"></p>
+            </div>
+
+            <!-- Location Input Section (shown if geolocation is denied) -->
+            <section id="location-input-section" class="location-input-section" style="display: none;">
+                <h2>Enter Your Location</h2>
+                <form id="location-form" class="location-form">
+                    <div class="form-group">
+                        <input 
+                            type="text" 
+                            id="city-input" 
+                            class="city-input" 
+                            placeholder="Enter city name (e.g., London, New York, Tokyo)"
+                            autocomplete="off"
+                            required
+                        >
+                        <button type="submit" class="btn btn-primary">Search</button>
+                    </div>
+                    <p class="form-hint">We don't have permission to access your location. Please enter a city name.</p>
+                </form>
+            </section>
+
+            <!-- Loading State -->
+            <div id="loading-state" class="loading-state" style="display: none;">
+                <div class="spinner"></div>
+                <p class="loading-text">Fetching weather data...</p>
+            </div>
+
+            <!-- Error State -->
+            <div id="error-state" class="error-state" style="display: none;">
+                <div class="error-icon">❌</div>
+                <h2 id="error-title" class="error-title"></h2>
+                <p id="error-message" class="error-message"></p>
+                <button id="retry-btn" class="btn btn-secondary">Try Again</button>
+            </div>
+
+            <!-- Weather Data Display -->
+            <div id="weather-content" class="weather-content" style="display: none;">
+                <!-- Current Weather Card -->
+                <div class="current-weather-card">
+                    <div class="location-header">
+                        <h2 id="location-name" class="location-name"></h2>
+                        <p id="current-time" class="current-time"></p>
+                    </div>
+
+                    <div class="weather-main">
+                        <div class="temperature-section">
+                            <span id="weather-icon" class="weather-icon">🌡️</span>
+                            <div class="temperature-info">
+                                <span id="temperature" class="temperature"></span>
+                                <span class="temp-unit">°C</span>
+                            </div>
+                        </div>
+                        <div class="condition-section">
+                            <p id="weather-description" class="weather-description"></p>
+                            <p id="feels-like" class="feels-like"></p>
+                        </div>
+                    </div>
+
+                    <div class="weather-details-grid">
+                        <div class="detail-card">
+                            <span class="detail-icon">💧</span>
+                            <span class="detail-label">Humidity</span>
+                            <span id="humidity" class="detail-value"></span>
+                        </div>
+                        <div class="detail-card">
+                            <span class="detail-icon">💨</span>
+                            <span class="detail-label">Wind Speed</span>
+                            <span id="wind-speed" class="detail-value"></span>
+                        </div>
+                        <div class="detail-card">
+                            <span class="detail-icon">🧭</span>
+                            <span class="detail-label">Wind Direction</span>
+                            <span id="wind-direction" class="detail-value"></span>
+                        </div>
+                        <div class="detail-card">
+                            <span class="detail-icon">🌡️</span>
+                            <span class="detail-label">Pressure</span>
+                            <span id="pressure" class="detail-value"></span>
+                        </div>
+                        <div class="detail-card">
+                            <span class="detail-icon">👁️</span>
+                            <span class="detail-label">Visibility</span>
+                            <span id="visibility" class="detail-value"></span>
+                        </div>
+                        <div class="detail-card">
+                            <span class="detail-icon">☁️</span>
+                            <span class="detail-label">Cloud Coverage</span>
+                            <span id="cloudiness" class="detail-value"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search Again Button -->
+                <div class="search-again">
+                    <button id="search-again-btn" class="btn btn-secondary btn-block">Search Another Location</button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>
+                <span id="footer-message"></span>
+                <a href="#" class="footer-link" id="update-location-link" style="display: none;">Update location</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="{% static 'dashboard/js/main.js' %}"></script>
+</body>
+</html>
