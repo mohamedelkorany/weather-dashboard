@@ -87,11 +87,22 @@ def get_weather(request):
         }
     }
     
-    Error Response (400, 404, 429, 500):
+    Error Responses with proper HTTP status codes:
     {
         "success": false,
-        "error": string (user-friendly message)
+        "error": string (user-friendly message),
+        "code": string (error code for frontend handling),
+        "retry": boolean (whether user should retry)
     }
+    
+    Status Codes:
+    - 200: Success
+    - 400: Bad Request (validation error, missing params)
+    - 401: Authentication error (invalid API key - shouldn't happen)
+    - 404: Not Found (city doesn't exist)
+    - 429: Too Many Requests (API rate limit)
+    - 503: Service Unavailable (API is down)
+    - 500: Internal Server Error
     
     Args:
         request: Django HTTP request object with JSON payload
@@ -106,7 +117,12 @@ def get_weather(request):
         except (json.JSONDecodeError, UnicodeDecodeError):
             logger.warning("Invalid JSON in weather request")
             return JsonResponse(
-                {'success': False, 'error': 'Invalid request format'},
+                {
+                    'success': False, 
+                    'error': 'Invalid request format. Please ensure your request is valid JSON.',
+                    'code': 'INVALID_REQUEST',
+                    'retry': False
+                },
                 status=400
             )
         
@@ -131,7 +147,12 @@ def get_weather(request):
             # No valid parameters provided
             logger.warning("Weather request missing required parameters")
             return JsonResponse(
-                {'success': False, 'error': 'Please provide either location coordinates or a city name'},
+                {
+                    'success': False, 
+                    'error': 'Please provide either location coordinates or a city name.',
+                    'code': 'MISSING_PARAMETERS',
+                    'retry': False
+                },
                 status=400
             )
         
@@ -145,32 +166,78 @@ def get_weather(request):
         # User input validation error (bad coordinates, invalid city format, etc.)
         logger.warning(f"Validation error: {str(e)}")
         return JsonResponse(
-            {'success': False, 'error': str(e)},
+            {
+                'success': False, 
+                'error': str(e),
+                'code': 'VALIDATION_ERROR',
+                'retry': False
+            },
             status=400
         )
     
     except RateLimitError as e:
-        # API rate limit exceeded
+        # API rate limit exceeded - user should wait and retry
         logger.warning(f"Rate limit exceeded: {str(e)}")
         return JsonResponse(
-            {'success': False, 'error': 'Service temporarily unavailable. Please try again in a moment.'},
+            {
+                'success': False, 
+                'error': 'Service temporarily unavailable due to high demand. Please try again in a moment.',
+                'code': 'RATE_LIMITED',
+                'retry': True,
+                'retryAfter': 60  # Suggest retry after 60 seconds
+            },
             status=429
         )
     
     except APIError as e:
         # API error (city not found, API down, etc.)
         logger.warning(f"API error: {str(e)}")
-        # Return generic message to avoid exposing API details
-        return JsonResponse(
-            {'success': False, 'error': str(e)},
-            status=404 if 'not found' in str(e).lower() else 500
-        )
+        error_msg = str(e)
+        
+        # Determine if it's a "not found" error or a service error
+        if 'not found' in error_msg.lower():
+            return JsonResponse(
+                {
+                    'success': False, 
+                    'error': error_msg,
+                    'code': 'CITY_NOT_FOUND',
+                    'retry': False
+                },
+                status=404
+            )
+        elif 'timed out' in error_msg.lower() or 'timeout' in error_msg.lower():
+            # Network timeout - user should retry
+            return JsonResponse(
+                {
+                    'success': False, 
+                    'error': 'Request timed out. Please try again.',
+                    'code': 'TIMEOUT',
+                    'retry': True
+                },
+                status=503
+            )
+        else:
+            # Generic API error - could be transient
+            return JsonResponse(
+                {
+                    'success': False, 
+                    'error': 'Unable to fetch weather data. Please try again.',
+                    'code': 'API_ERROR',
+                    'retry': True
+                },
+                status=503
+            )
     
     except ConfigurationError as e:
         # Configuration error (missing API key, etc.) - should not happen in production
         logger.error(f"Configuration error: {str(e)}")
         return JsonResponse(
-            {'success': False, 'error': 'Service is not properly configured'},
+            {
+                'success': False, 
+                'error': 'Service is not properly configured. Please contact support.',
+                'code': 'CONFIG_ERROR',
+                'retry': False
+            },
             status=500
         )
     
@@ -178,6 +245,11 @@ def get_weather(request):
         # Unexpected error - log it but don't expose details to client
         logger.error(f"Unexpected error in get_weather: {str(e)}", exc_info=True)
         return JsonResponse(
-            {'success': False, 'error': 'An unexpected error occurred. Please try again later.'},
+            {
+                'success': False, 
+                'error': 'An unexpected error occurred. Please try again later.',
+                'code': 'INTERNAL_ERROR',
+                'retry': True
+            },
             status=500
         )

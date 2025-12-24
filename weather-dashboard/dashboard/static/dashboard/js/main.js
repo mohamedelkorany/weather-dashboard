@@ -22,6 +22,7 @@ class WeatherDashboard {
         this.errorTitle = document.getElementById('error-title');
         this.errorMessage = document.getElementById('error-message');
         this.retryBtn = document.getElementById('retry-btn');
+        this.searchByBtn = document.getElementById('search-btn');
         this.weatherContent = document.getElementById('weather-content');
         this.searchAgainBtn = document.getElementById('search-again-btn');
         this.footerMessage = document.getElementById('footer-message');
@@ -41,6 +42,9 @@ class WeatherDashboard {
         // Attach event listeners
         this.locationForm.addEventListener('submit', (e) => this.handleCitySearch(e));
         this.retryBtn.addEventListener('click', () => this.retryWeatherFetch());
+        if (this.searchByBtn) {
+            this.searchByBtn.addEventListener('click', () => this.showLocationInput());
+        }
         this.searchAgainBtn.addEventListener('click', () => this.showLocationInput());
         this.updateLocationLink.addEventListener('click', (e) => {
             e.preventDefault();
@@ -52,19 +56,28 @@ class WeatherDashboard {
     }
 
     /**
-     * Detect user's location using browser Geolocation API
+     * Detect user's location using browser Geolocation API with comprehensive error handling
      */
     detectUserLocation() {
         this.showStatus('📍 Detecting your location...');
 
+        // Check if geolocation is supported
         if (!navigator.geolocation) {
             this.handleGeolocationNotSupported();
             return;
         }
 
+        // Use timeout and high accuracy options
+        const options = {
+            enableHighAccuracy: true,
+            timeout: 10000,  // 10 second timeout
+            maximumAge: 0    // Don't use cached location
+        };
+
         navigator.geolocation.getCurrentPosition(
             (position) => this.handleLocationSuccess(position),
-            (error) => this.handleLocationError(error)
+            (error) => this.handleLocationError(error),
+            options
         );
     }
 
@@ -72,34 +85,95 @@ class WeatherDashboard {
      * Handle successful geolocation
      */
     handleLocationSuccess(position) {
-        const { latitude, longitude } = position.coords;
+        const { latitude, longitude, accuracy } = position.coords;
         this.currentLocation = { latitude, longitude, isGeolocation: true };
 
-        this.showStatus(`📍 Location detected: ${latitude.toFixed(2)}°, ${longitude.toFixed(2)}°`);
+        this.showStatus(`📍 Location detected (accuracy: ±${Math.round(accuracy)}m)`);
         this.fetchWeatherByCoordinates(latitude, longitude);
     }
 
     /**
-     * Handle geolocation errors
+     * Handle geolocation errors with detailed messages
      */
     handleLocationError(error) {
-        const messages = {
-            1: 'You denied access to your location. Please enter a city name to continue.',
-            2: 'Unable to determine your location. Please check your internet connection.',
-            3: 'Location detection timed out. Please try entering a city name manually.'
+        const errorMessages = {
+            1: {
+                icon: '🚫',
+                title: 'Permission Denied',
+                message: 'You denied access to your location.',
+                details: 'Location services are disabled. To enable them, go to your browser settings and grant location permission for this site.',
+                suggestion: 'You can search for a city manually instead.'
+            },
+            2: {
+                icon: '📡',
+                title: 'Location Unavailable',
+                message: 'Unable to retrieve your location data.',
+                details: 'Your device\'s location service may be turned off or unavailable.',
+                suggestion: 'Please check that location services are enabled on your device.'
+            },
+            3: {
+                icon: '⏱️',
+                title: 'Location Timeout',
+                message: 'Location detection took too long.',
+                details: 'Your browser took more than 10 seconds to determine your location.',
+                suggestion: 'Please try again or search for a city manually.'
+            }
         };
 
-        const message = messages[error.code] || 'Unable to detect location. Please enter a city name.';
-        this.showStatus(`📍 ${message}`);
-        this.showLocationInput();
+        const errorData = errorMessages[error.code] || {
+            icon: '❓',
+            title: 'Location Error',
+            message: 'Unable to detect location.',
+            suggestion: 'Please search for a city manually.'
+        };
+
+        console.warn(`Geolocation error [${error.code}]: ${error.message}`);
+        
+        this.showStatus(`${errorData.icon} ${errorData.title}`);
+        
+        // Log for debugging but don't show to user
+        if (error.message) {
+            console.debug(`Error details: ${error.message}`);
+        }
+        
+        // Show location input form with helpful message
+        this.showLocationInputWithMessage(errorData);
     }
 
     /**
      * Handle browser without geolocation support
      */
     handleGeolocationNotSupported() {
-        this.showStatus('📍 Location detection is not available in your browser.');
-        this.showLocationInput();
+        const errorData = {
+            icon: '🌐',
+            title: 'Geolocation Not Supported',
+            message: 'Your browser does not support location detection.',
+            details: 'Please update to a modern browser like Chrome, Firefox, Safari, or Edge for location support.',
+            suggestion: 'You can search for a city manually instead.'
+        };
+        
+        this.showStatus(`${errorData.icon} ${errorData.title}`);
+        this.showLocationInputWithMessage(errorData);
+    }
+
+    /**
+     * Show location input form with additional help message
+     */
+    showLocationInputWithMessage(errorData) {
+        this.locationStatus.style.display = 'none';
+        this.loadingState.style.display = 'none';
+        this.errorState.style.display = 'none';
+        this.weatherContent.style.display = 'none';
+        this.locationInputSection.style.display = 'block';
+        
+        // Add error details if section exists
+        const errorDetails = document.querySelector('.location-error-details');
+        if (errorDetails && errorData.details) {
+            errorDetails.textContent = errorData.details;
+            errorDetails.style.display = 'block';
+        }
+        
+        this.cityInput.focus();
     }
 
     /**
@@ -137,15 +211,48 @@ class WeatherDashboard {
     /**
      * Show error state with user-friendly message
      */
-    showError(title, message) {
+    /**
+     * Show error state with enhanced display and retry options
+     */
+    showError(title, message, errorInfo = {}, showRetryButton = false) {
         this.locationStatus.style.display = 'none';
         this.locationInputSection.style.display = 'none';
         this.loadingState.style.display = 'none';
         this.weatherContent.style.display = 'none';
         this.errorState.style.display = 'block';
 
+        // Set title and message
         this.errorTitle.textContent = title;
         this.errorMessage.textContent = message;
+        
+        // Add suggestion if available
+        let errorContent = message;
+        if (errorInfo.suggestion) {
+            errorContent += `\n\n💡 ${errorInfo.suggestion}`;
+        }
+        this.errorMessage.textContent = errorContent;
+
+        // Handle retry button based on error type
+        const tryAgainButton = document.querySelector('.error-btn-try-again');
+        const searchButton = document.querySelector('.error-btn-search');
+        
+        if (showRetryButton && errorInfo.retryable !== false) {
+            if (tryAgainButton) {
+                tryAgainButton.style.display = 'inline-block';
+                tryAgainButton.textContent = 'Try Again';
+            }
+        } else {
+            if (tryAgainButton) {
+                tryAgainButton.style.display = 'none';
+            }
+        }
+        
+        // Always show search button as fallback
+        if (searchButton) {
+            searchButton.style.display = 'inline-block';
+            searchButton.textContent = 'Search Instead';
+        }
+
         this.isLoadingWeather = false;
     }
 
@@ -199,7 +306,7 @@ class WeatherDashboard {
             const data = await response.json();
 
             if (!data.success) {
-                this.handleWeatherError(data.error);
+                this.handleWeatherError(data, response.status);
                 return;
             }
 
@@ -229,7 +336,7 @@ class WeatherDashboard {
             const data = await response.json();
 
             if (!data.success) {
-                this.handleWeatherError(data.error);
+                this.handleWeatherError(data, response.status);
                 return;
             }
 
@@ -241,49 +348,134 @@ class WeatherDashboard {
     }
 
     /**
-     * Handle weather API errors with user-friendly messages
+     * Handle weather API errors with status code-aware messages and retry logic
      */
-    handleWeatherError(error) {
+    handleWeatherError(data, statusCode) {
+        const errorCode = data.code || 'UNKNOWN';
+        const shouldRetry = data.retry || false;
+        const retryAfter = data.retryAfter || 30;
+
+        // Comprehensive error mapping with user-friendly messages
         const errorMap = {
-            'Service is not properly configured': {
-                title: '⚠️ Service Configuration Issue',
-                message: 'The weather service is not properly configured. Please try again later.'
+            'CITY_NOT_FOUND': {
+                title: '🔍 Location Not Found',
+                message: 'We couldn\'t find a city with that name. Please check the spelling and try again.',
+                emoji: '🔍',
+                icon: '❌',
+                suggestion: 'Try searching for: London, New York, Paris, Tokyo'
             },
-            'City not found': {
-                title: '🔍 City Not Found',
-                message: 'We couldn\'t find a city with that name. Please check the spelling and try again.'
-            },
-            'Invalid input': {
+            'VALIDATION_ERROR': {
                 title: '⚠️ Invalid Input',
-                message: 'Please enter a valid city name or coordinates.'
+                message: 'Please enter a valid city name. City names should be 2-100 characters long.',
+                emoji: '⚠️',
+                icon: '❌',
+                suggestion: 'Example: London, Paris, New York'
             },
-            'API rate limit exceeded': {
-                title: '⏳ Too Many Requests',
-                message: 'You\'ve made too many requests. Please wait a moment and try again.'
+            'MISSING_PARAMETERS': {
+                title: '📝 Missing Information',
+                message: 'Please provide a location (either your coordinates or a city name).',
+                emoji: '📝',
+                icon: '❌',
+                suggestion: 'Allow location access or type a city name'
             },
-            'Invalid coordinates': {
-                title: '📍 Invalid Location',
-                message: 'The location data is invalid. Please try entering a city name instead.'
+            'INVALID_REQUEST': {
+                title: '🔧 Invalid Request Format',
+                message: 'There was a problem with your request format. Please try again.',
+                emoji: '🔧',
+                icon: '❌',
+                suggestion: 'Try refreshing the page'
+            },
+            'RATE_LIMITED': {
+                title: '⏳ Service Busy',
+                message: `You've made too many requests. Please wait ${retryAfter} seconds and try again.`,
+                emoji: '⏳',
+                icon: '⚠️',
+                suggestion: 'Automatic retry available',
+                retryable: true,
+                retryAfter: retryAfter
+            },
+            'TIMEOUT': {
+                title: '⏱️ Connection Timeout',
+                message: 'The request took too long. Please check your internet connection and try again.',
+                emoji: '⏱️',
+                icon: '⚠️',
+                suggestion: 'Click "Try Again" to retry',
+                retryable: true,
+                retryAfter: 5
+            },
+            'API_ERROR': {
+                title: '🌐 Service Error',
+                message: 'Unable to fetch weather data. The service may be temporarily unavailable. Please try again.',
+                emoji: '🌐',
+                icon: '⚠️',
+                suggestion: 'Click "Try Again" to retry',
+                retryable: true,
+                retryAfter: 10
+            },
+            'CONFIG_ERROR': {
+                title: '⚙️ Configuration Problem',
+                message: 'The weather service is not properly configured. Please contact support.',
+                emoji: '⚙️',
+                icon: '❌',
+                suggestion: 'Please refresh and try again'
+            },
+            'INTERNAL_ERROR': {
+                title: '❌ Unexpected Error',
+                message: 'An unexpected error occurred. Please try again later.',
+                emoji: '❌',
+                icon: '❌',
+                suggestion: 'Click "Try Again" to retry',
+                retryable: true,
+                retryAfter: 10
+            },
+            'UNKNOWN': {
+                title: '❌ Error Loading Weather',
+                message: data.error || 'Unable to fetch weather data. Please try again.',
+                emoji: '❌',
+                icon: '❌',
+                suggestion: 'Click "Try Again" to retry',
+                retryable: shouldRetry,
+                retryAfter: retryAfter
             }
         };
 
-        const errorInfo = errorMap[error] || {
-            title: '❌ Error Loading Weather',
-            message: `Unable to fetch weather: ${error}. Please try again.`
-        };
-
-        this.showError(errorInfo.title, errorInfo.message);
+        const errorInfo = errorMap[errorCode] || errorMap['UNKNOWN'];
+        this.showError(errorInfo.title, errorInfo.message, errorInfo, shouldRetry);
     }
 
     /**
-     * Handle network errors
+     * Handle network errors with retry capability
      */
     handleNetworkError(error) {
         console.error('Network error:', error);
-        this.showError(
-            '🌐 Connection Error',
-            'Unable to connect to the weather service. Please check your internet connection and try again.'
-        );
+        
+        // Determine error type
+        let errorInfo = {
+            title: '🌐 Connection Error',
+            message: 'Unable to connect to the weather service. Please check your internet connection and try again.',
+            emoji: '🌐',
+            icon: '⚠️',
+            suggestion: 'Check your internet connection and retry',
+            retryable: true,
+            retryAfter: 5
+        };
+
+        // Handle specific error types
+        if (error.name === 'AbortError') {
+            errorInfo = {
+                ...errorInfo,
+                title: '⏱️ Request Timeout',
+                message: 'The request took too long. Please try again.',
+            };
+        } else if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+            errorInfo = {
+                ...errorInfo,
+                title: '🌐 Network Unavailable',
+                message: 'Unable to reach the weather service. Please check your internet connection.',
+            };
+        }
+
+        this.showError(errorInfo.title, errorInfo.message, errorInfo, true);
     }
 
     /**

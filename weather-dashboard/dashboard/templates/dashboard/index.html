@@ -46,6 +46,7 @@
                         <button type="submit" class="btn btn-primary">Search</button>
                     </div>
                     <p class="form-hint">We don't have permission to access your location. Please enter a city name.</p>
+                    <p class="location-error-details" style="display: none; color: #e74c3c; font-size: 0.9em; margin-top: 10px;"></p>
                 </form>
             </section>
 
@@ -60,7 +61,10 @@
                 <div class="error-icon">❌</div>
                 <h2 id="error-title" class="error-title"></h2>
                 <p id="error-message" class="error-message"></p>
-                <button id="retry-btn" class="btn btn-secondary">Try Again</button>
+                <div class="error-actions">
+                    <button id="retry-btn" class="btn btn-primary error-btn-try-again" style="display: none;">Try Again</button>
+                    <button id="search-btn" class="btn btn-secondary error-btn-search">Search by City</button>
+                </div>
             </div>
 
             <!-- Weather Data Display -->
